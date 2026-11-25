@@ -135,11 +135,11 @@ class EmployeeProfileView(HorillaProfileView):
                     "accessibility": "employee.cbv.accessibility.admin_reset_password_accessibility",
                     "attrs": f"""
                         href="#"
-                        hx-post="{reverse('employee-reset-password-admin', args=[pk])}"
+                        hx-get="{reverse('employee-reset-password-admin', args=[pk])}"
                         hx-target="#genericModalBody"
                         hx-swap="innerHTML"
-                        hx-confirm="{_('This will immediately invalidate the current password. Continue?')}"
-                        hx-on::after-request="if (event.detail.successful) document.getElementById('genericModal').classList.add('oh-modal--show')"
+                        data-toggle="oh-modal-toggle"
+                        data-target="#genericModal"
                     """,
                 },
                 {

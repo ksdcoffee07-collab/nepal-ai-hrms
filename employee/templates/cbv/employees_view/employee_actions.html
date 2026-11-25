@@ -61,11 +61,11 @@
 	{% if perms.employee.change_employee %}
 	<button
 		type="button"
-		hx-post="{% url 'employee-reset-password-admin' instance.id %}"
+		hx-get="{% url 'employee-reset-password-admin' instance.id %}"
 		hx-target="#genericModalBody"
 		hx-swap="innerHTML"
-		hx-on::after-request="if (event.detail.successful) document.getElementById('genericModal').classList.add('oh-modal--show')"
-		hx-confirm="{% trans 'This will immediately invalidate the current password. Continue?' %}"
+		data-toggle="oh-modal-toggle"
+		data-target="#genericModal"
 		title="{% trans 'Reset Password' %}"
 		class="oh-btn oh-btn--light-bkg oh-btn--sq-sm"
 	>
