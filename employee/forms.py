@@ -27,6 +27,8 @@ from datetime import date, datetime
 from typing import Any
 
 from django import forms
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.forms import DateInput, TextInput
 from django.template.loader import render_to_string
@@ -55,6 +57,18 @@ from horilla_widgets.widgets.horilla_multi_select_field import HorillaMultiSelec
 from horilla_widgets.widgets.select_widgets import HorillaMultiSelectWidget
 
 logger = logging.getLogger(__name__)
+
+
+def _add_password_pair_errors(form, password_field, confirmation_field, user):
+    password = form.cleaned_data.get(password_field)
+    confirmation = form.cleaned_data.get(confirmation_field)
+    if password and confirmation and password != confirmation:
+        form.add_error(confirmation_field, _("The passwords do not match."))
+    elif password:
+        try:
+            validate_password(password, user=user)
+        except ValidationError as error:
+            form.add_error(password_field, error)
 
 
 class ModelForm(forms.ModelForm):
@@ -226,7 +240,20 @@ class EmployeeForm(ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.set_login_password = kwargs.pop("set_login_password", False)
         super().__init__(*args, **kwargs)
+        if self.set_login_password:
+            self.fields["login_password"] = forms.CharField(
+                label=_("Login Password"),
+                help_text=_("Set the initial password for this employee's login."),
+                strip=False,
+                widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+            )
+            self.fields["login_password_confirmation"] = forms.CharField(
+                label=_("Confirm Login Password"),
+                strip=False,
+                widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+            )
         self.fields["email"].widget.attrs["autocomplete"] = "email"
         self.fields["phone"].widget.attrs["autocomplete"] = "phone"
         self.fields["address"].widget.attrs["autocomplete"] = "address"
@@ -248,6 +275,18 @@ class EmployeeForm(ModelForm):
 
     def clean(self):
         super().clean()
+        if self.set_login_password:
+            email = self.cleaned_data.get("email") or ""
+            user = HorillaUser(
+                username=email,
+                email=email,
+                first_name=self.cleaned_data.get("employee_first_name") or "",
+                last_name=self.cleaned_data.get("employee_last_name") or "",
+            )
+            _add_password_pair_errors(
+                self, "login_password", "login_password_confirmation", user
+            )
+
         email = self.cleaned_data["email"]
         query = Employee.objects.entire().filter(email=email)
         if self.instance and self.instance.id:
@@ -271,8 +310,8 @@ class EmployeeForm(ModelForm):
                 )
             else:
                 error_message = _("An Employee with this Email already exists")
-
             raise forms.ValidationError({"email": error_message})
+        return self.cleaned_data
 
     def get_next_badge_id(self):
         """
@@ -342,6 +381,30 @@ class EmployeeForm(ModelForm):
                     _("Badge ID must contain at least one digit.")
                 )
         return badge_id
+
+
+class EmployeePasswordResetForm(forms.Form):
+    password = forms.CharField(
+        label=_("New Password"),
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+    password_confirmation = forms.CharField(
+        label=_("Confirm New Password"),
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        _add_password_pair_errors(
+            self, "password", "password_confirmation", self.user
+        )
+        return cleaned_data
 
 
 class EmployeeWorkInformationForm(ModelForm):

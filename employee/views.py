@@ -85,6 +85,7 @@ from employee.forms import (
     EmployeeForm,
     EmployeeGeneralSettingPrefixForm,
     EmployeeNoteForm,
+    EmployeePasswordResetForm,
     EmployeeTagForm,
     EmployeeWorkInformationForm,
     EmployeeWorkInformationUpdateForm,
@@ -1646,7 +1647,7 @@ def employee_view_new(request):
     """
     This method is used to render form to create a new employee.
     """
-    form = EmployeeForm()
+    form = EmployeeForm(set_login_password=True)
     work_form = EmployeeWorkInformationForm()
     bank_form = EmployeeBankDetailsForm()
     filter_obj = EmployeeFilter(queryset=Employee.objects.all())
@@ -1967,10 +1968,21 @@ def employee_create_update_personal_info(request, obj_id=None):
     ):
         return handle_no_permission(request)
     employee = Employee.objects.filter(id=obj_id).first()
-    form = EmployeeForm(request.POST, request.FILES, instance=employee)
+    is_new_employee = obj_id is None
+    form = EmployeeForm(
+        request.POST,
+        request.FILES,
+        instance=employee,
+        set_login_password=is_new_employee,
+    )
     if form.is_valid():
-        form.save()
-        if obj_id is None:
+        if is_new_employee:
+            employee = form.save(commit=False)
+            employee.save(login_password=form.cleaned_data["login_password"])
+            form.save_m2m()
+        else:
+            form.save()
+        if is_new_employee:
             # Saving an employee creates an empty work information row; put the
             # company the user is working in on it (None when "All companies"
             # is selected), or the employee has no company until someone edits
@@ -2467,34 +2479,46 @@ def employee_bulk_archive(request):
 
 @login_required
 @permission_required("employee.change_employee")
+@require_http_methods(["GET", "POST"])
 def employee_reset_password_admin(request, emp_id):
-    """
-    Generates a new random password for one employee and shows it once so
-    the admin can relay it manually -- the password is never emailed,
-    logged, or kept anywhere after this response.
-    """
     employee = get_object_or_404(Employee, id=emp_id)
-    results = []
     user = employee.employee_user_id
     if user == request.user:
-        # Resetting your own password here would change the live
-        # credentials of the session making this request -- Django
-        # invalidates the session's auth hash on password change, logging
-        # the admin out immediately and confusingly mid-action. Route them
-        # to the normal self-service change-password flow instead.
-        messages.warning(
-            request,
-            _(
-                "You can't reset your own password here — use Change Password from your profile menu instead."
-            ),
+        blocked_message = _(
+            "You can't reset your own password here — use Change Password from your profile menu instead."
         )
-    elif user:
-        new_password = generate_random_password()
-        user.set_password(new_password)
-        user.is_new_employee = True
-        user.save()
-        results.append({"employee": employee, "password": new_password})
-    return render(request, "employee/reset_password_result.html", {"results": results})
+        return render(
+            request,
+            "employee/password_reset_form.html",
+            {"employee": employee, "blocked_message": blocked_message},
+        )
+    if not user:
+        blocked_message = _("This employee does not have a login account.")
+        return render(
+            request,
+            "employee/password_reset_form.html",
+            {"employee": employee, "blocked_message": blocked_message},
+        )
+
+    form = EmployeePasswordResetForm(user=user)
+    if request.method == "POST" and (
+        "password" in request.POST or "password_confirmation" in request.POST
+    ):
+        form = EmployeePasswordResetForm(request.POST, user=user)
+        if form.is_valid():
+            user.set_password(form.cleaned_data["password"])
+            user.is_new_employee = True
+            user.save(update_fields=["password", "is_new_employee"])
+            return render(
+                request,
+                "employee/password_reset_form.html",
+                {"employee": employee, "updated": True},
+            )
+    return render(
+        request,
+        "employee/password_reset_form.html",
+        {"employee": employee, "form": form},
+    )
 
 
 @login_required

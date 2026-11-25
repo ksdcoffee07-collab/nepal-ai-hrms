@@ -823,7 +823,7 @@ class Employee(models.Model):
                     {"employee_profile": "Invalid image or SVG file."}
                 )
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, login_password=None, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -836,7 +836,11 @@ class Employee(models.Model):
         if employee.employee_user_id is None:
             # Create user if no corresponding user exists
             username = self.email
-            password = generate_random_password()
+            password = (
+                login_password
+                if login_password is not None
+                else generate_random_password()
+            )
 
             # The email is unique among Employees, but an unrelated
             # HorillaUser can already own it as a username -- e.g. an
