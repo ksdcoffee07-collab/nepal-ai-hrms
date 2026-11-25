@@ -31,6 +31,25 @@ class LoginAPITests(TestCase):
         self.assertTrue(response.data["access"])
         self.assertEqual(response.data["employee"]["id"], self.employee.pk)
 
+    def test_login_accepts_email_as_identifier(self):
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": self.user.email.upper(), "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn("access", response.data)
+        self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+
+    def test_login_rejects_an_email_shared_by_multiple_users(self):
+        make_user("another_api_login", password=self.password, email=self.user.email)
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 401)
+
 
 class JWTProtectedEndpointTests(TestCase):
     def setUp(self):

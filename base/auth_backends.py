@@ -22,6 +22,7 @@ preventing accidental lockouts on session-less code paths.
 """
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth.models import Permission
 
@@ -29,7 +30,28 @@ from horilla.horilla_middlewares import _thread_locals, get_selected_company
 
 
 class CompanyScopedBackend(ModelBackend):
-    """ModelBackend with per-company group permission resolution."""
+    """ModelBackend with unique-email login and per-company permissions."""
+
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        user_model = get_user_model()
+        if username is None:
+            username = kwargs.get(user_model.USERNAME_FIELD)
+        if username is None:
+            return None
+
+        try:
+            user_model._default_manager.get_by_natural_key(username)
+        except user_model.DoesNotExist:
+            email_matches = list(
+                user_model._default_manager.filter(email__iexact=username)[:2]
+            )
+            if len(email_matches) != 1:
+                return None
+            username = email_matches[0].get_username()
+
+        return super().authenticate(
+            request, username=username, password=password, **kwargs
+        )
 
     def _get_group_permissions(self, user_obj):
         if not getattr(settings, "COMPANY_SCOPED_PERMISSIONS", False):
