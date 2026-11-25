@@ -41,6 +41,19 @@ class LoginAPITests(TestCase):
         self.assertIn("access", response.data)
         self.assertEqual(response.data["employee"]["id"], self.employee.pk)
 
+    def test_login_accepts_employee_email_when_account_email_differs(self):
+        employee_email = "profile_email@test.horilla"
+        type(self.employee).objects.filter(pk=self.employee.pk).update(
+            email=employee_email
+        )
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": employee_email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+
     def test_login_rejects_an_email_shared_by_multiple_users(self):
         make_user("another_api_login", password=self.password, email=self.user.email)
         response = self.client.post(

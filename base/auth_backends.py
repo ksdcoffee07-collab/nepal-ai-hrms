@@ -45,9 +45,24 @@ class CompanyScopedBackend(ModelBackend):
             email_matches = list(
                 user_model._default_manager.filter(email__iexact=username)[:2]
             )
-            if len(email_matches) != 1:
+            if len(email_matches) > 1:
                 return None
-            username = email_matches[0].get_username()
+            if email_matches:
+                username = email_matches[0].get_username()
+            else:
+                from employee.models import Employee
+
+                profile_usernames = list(
+                    Employee.objects.filter(
+                        email__iexact=username,
+                        employee_user_id__isnull=False,
+                    ).values_list(
+                        f"employee_user_id__{user_model.USERNAME_FIELD}", flat=True
+                    )[:2]
+                )
+                if len(profile_usernames) != 1:
+                    return None
+                username = profile_usernames[0]
 
         return super().authenticate(
             request, username=username, password=password, **kwargs
