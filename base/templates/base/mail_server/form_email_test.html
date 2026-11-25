@@ -42,8 +42,7 @@
 </style>
 
 <h2 class="oh-inner-sidebar-content__title">{% trans "Send Test Email" %}</h2>
-<form hx-post="{{ request.get_full_path }}"
-    hx-on="htmx:afterSwap: checkValidationErrors" hx-target="#mailServerModalBody">
+<form hx-post="{{ request.get_full_path }}" hx-target="#mailServerModalBody">
     {% csrf_token %}
     {% for field in form %}
         {% if field.field.widget.is_hidden %}
@@ -86,35 +85,22 @@
 </div>
 
 <script>
-    // Show the loading overlay immediately when the request starts
-    document.body.addEventListener("htmx:beforeRequest", function (event) {
-        // Show the loading overlay before the request is sent
-        const overlay = $("#loading-overlay");
-        overlay.removeClass('d-none')
-    });
+    const testEmailForm = document.querySelector("#mailServerModalBody form");
+    const loadingOverlay = document.querySelector(
+        "#mailServerModalBody #loading-overlay"
+    );
 
-    // Function to check if there are any validation errors in the form after HTMX updates it
-    document.body.addEventListener("htmx:afterSwap", function (event) {
-        // Only check for errors if the updated content is a form
-        if (event.target.closest("form")) {
-            checkValidationErrors(event.target);
-        }
-    });
+    if (testEmailForm && loadingOverlay) {
+        testEmailForm.addEventListener("htmx:beforeRequest", function () {
+            loadingOverlay.classList.remove("d-none");
+        });
 
-    function checkValidationErrors(form) {
-        const errorList = form.querySelector(".errorlist");
-        const overlay = $("#loading-overlay");
-        const formContainer = form.closest('#mailServerModalBody'); // Assuming the form is inside a section
-
-        // Check if errorList exists and contains errors
-        if (errorList && errorList.children.length > 0) {
-            // Hide the loading overlay if there are validation errors
-            overlay.addClass("d-none");
-        } else {
-            // Show the loading overlay and hide the form if there are no validation errors
-            overlay.removeClass("d-none");
-            formContainer.addClass("d-none");  // Hide form if no validation errors
-        }
+        testEmailForm.addEventListener(
+            "htmx:afterRequest",
+            function () {
+                loadingOverlay.classList.add("d-none");
+            }
+        );
     }
 </script>
 

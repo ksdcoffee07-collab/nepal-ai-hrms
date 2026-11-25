@@ -2206,7 +2206,10 @@ def mail_server_test_email(request):
                         msg_img.add_header("Content-ID", "<company_logo>")
                         msg.attach(msg_img)
 
-                msg.send()
+                if not msg.send():
+                    raise RuntimeError(
+                        _("The mail backend did not accept the test email.")
+                    )
             except Exception as e:
                 messages.error(request, " ".join([_("Something went wrong :"), str(e)]))
                 return HorillaRedirect(request)
