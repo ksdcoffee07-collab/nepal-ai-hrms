@@ -4,18 +4,11 @@ email_backend.py
 This module is used to write email backends
 """
 
-import base64
 import importlib
 import logging
-from email.mime.base import MIMEBase
-from mimetypes import guess_extension
 
-import requests
-from django.conf import settings as django_settings
 from django.core.cache import cache
-from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import EmailMessage
-from django.core.mail.backends.base import BaseEmailBackend
 from django.core.mail.backends.smtp import EmailBackend
 
 from base.email_redaction import get_current_company, redact_credential_body
@@ -24,122 +17,6 @@ from horilla import settings
 from horilla.horilla_middlewares import _thread_locals
 
 logger = logging.getLogger(__name__)
-
-
-class ResendEmailBackend(BaseEmailBackend):
-    api_url = "https://api.resend.com/emails"
-
-    def __init__(self, fail_silently=False, **kwargs):
-        super().__init__(fail_silently=fail_silently)
-        self.api_key = django_settings.RESEND_API_KEY
-        self.from_email = django_settings.RESEND_FROM_EMAIL
-        self.timeout = django_settings.RESEND_API_TIMEOUT
-
-    def send_messages(self, email_messages):
-        if not email_messages:
-            return 0
-        if not self.api_key:
-            raise ImproperlyConfigured("RESEND_API_KEY must be configured")
-        if not self.from_email:
-            raise ImproperlyConfigured("RESEND_FROM_EMAIL must be configured")
-
-        sent = 0
-        for message in email_messages:
-            if not message.recipients():
-                continue
-
-            payload = self._build_payload(message)
-            response = None
-            try:
-                response = requests.post(
-                    self.api_url,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json=payload,
-                    timeout=self.timeout,
-                )
-                response.raise_for_status()
-            except requests.HTTPError as error:
-                if self.fail_silently:
-                    continue
-                detail = response.text.strip() if response is not None else ""
-                status_code = (
-                    response.status_code if response is not None else "unknown"
-                )
-                message = f"Resend API rejected the email ({status_code})"
-                if detail:
-                    message = f"{message}: {detail[:1000]}"
-                raise RuntimeError(message) from error
-            except requests.RequestException:
-                if self.fail_silently:
-                    continue
-                raise
-            sent += 1
-
-        return sent
-
-    def _build_payload(self, message):
-        payload = {
-            "from": self.from_email,
-            "to": message.to,
-            "subject": message.subject,
-        }
-        if message.cc:
-            payload["cc"] = message.cc
-        if message.bcc:
-            payload["bcc"] = message.bcc
-        if message.reply_to:
-            payload["reply_to"] = message.reply_to
-        if message.extra_headers:
-            payload["headers"] = message.extra_headers
-
-        if message.content_subtype == "html":
-            payload["html"] = message.body
-        else:
-            payload["text"] = message.body
-
-        for content, mimetype in getattr(message, "alternatives", []):
-            if mimetype == "text/html":
-                payload["html"] = content
-            elif mimetype == "text/plain":
-                payload["text"] = content
-
-        attachments = [
-            self._build_attachment(attachment)
-            for attachment in message.attachments
-        ]
-        if attachments:
-            payload["attachments"] = attachments
-
-        return payload
-
-    @staticmethod
-    def _build_attachment(attachment):
-        content_id = None
-        if isinstance(attachment, MIMEBase):
-            filename = attachment.get_filename()
-            content = attachment.get_payload(decode=True)
-            content_id = attachment.get("Content-ID")
-            content_type = attachment.get_content_type()
-        else:
-            filename, content, content_type = attachment
-
-        if hasattr(content, "read"):
-            content = content.read()
-        if isinstance(content, str):
-            content = content.encode()
-        if not isinstance(content, bytes):
-            raise TypeError("Email attachment content must be bytes or text")
-        if not filename:
-            extension = guess_extension(content_type or "") or ".bin"
-            filename = f"attachment{extension}"
-
-        result = {
-            "filename": filename,
-            "content": base64.b64encode(content).decode("ascii"),
-        }
-        if content_id:
-            result["content_id"] = content_id.strip("<>")
-        return result
 
 
 class DefaultHorillaMailBackend(EmailBackend):
@@ -321,22 +198,10 @@ if EMAIL_BACKEND and EMAIL_BACKEND != default:
 class ConfiguredEmailBackend(BACKEND_CLASS):
 
     def send_messages(self, email_messages):
-        provider = django_settings.EMAIL_PROVIDER
-        if provider == "resend":
-            response = ResendEmailBackend(
-                fail_silently=self.fail_silently
-            ).send_messages(email_messages)
-        elif provider == "smtp":
-            response = super(BACKEND_CLASS, self).send_messages(email_messages)
-        else:
-            raise ImproperlyConfigured(f"Unsupported email provider: {provider}")
+        response = super(BACKEND_CLASS, self).send_messages(email_messages)
         for message in email_messages:
             from_email = (
-                (
-                    django_settings.RESEND_FROM_EMAIL
-                    if provider == "resend"
-                    else self.dynamic_from_email_with_display_name
-                )
+                self.dynamic_from_email_with_display_name
                 or message.from_email
                 or getattr(settings, "DEFAULT_FROM_EMAIL", "")
             )

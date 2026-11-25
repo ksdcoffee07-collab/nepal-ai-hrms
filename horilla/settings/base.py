@@ -483,10 +483,6 @@ AUDITLOG_EXCLUDE_TRACKING_MODELS = (
 )
 
 EMAIL_BACKEND = "base.backends.ConfiguredEmailBackend"
-EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="smtp").lower()
-RESEND_API_KEY = env("RESEND_API_KEY", default="")
-RESEND_FROM_EMAIL = env("RESEND_FROM_EMAIL", default="")
-RESEND_API_TIMEOUT = env.int("RESEND_API_TIMEOUT", default=10)
 
 """
 DB_INIT_PASSWORD: str
