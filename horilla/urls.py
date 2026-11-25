@@ -30,7 +30,7 @@ import notifications.urls
 from horilla_crumbs.views import breadcrumbs_fragment
 
 from . import settings
-from .__version__ import API_VERSION
+from .__version__ import API_VERSION, __version__
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +44,20 @@ def health_check(request):
     they can talk to, *before* posting credentials: a typo'd host should
     report "not a Horilla server" rather than "invalid credentials".
 
-    Deliberately not the release string. This route is unauthenticated, and
-    published security advisories name exact patched versions -- handing the
-    precise release to anyone who asks turns a scan into a list of which
-    advisories apply to this host. ``product`` answers "is this Horilla" and
-    ``api`` answers "can I talk to it"; neither narrows an install to a patch
-    level. The exact version is still available to a signed-in client, in the
-    capabilities payload.
+    The legacy ``version`` field carries only major.minor for older mobile
+    clients. This route is unauthenticated, and published security advisories
+    name exact patched versions, so the precise release remains available only
+    to signed-in clients in the capabilities payload.
     """
+    compatibility_version = ".".join(__version__.split(".")[:2])
     return JsonResponse(
-        {"status": "ok", "product": "horilla", "api": API_VERSION}, status=200
+        {
+            "status": "ok",
+            "product": "horilla",
+            "api": API_VERSION,
+            "version": compatibility_version,
+        },
+        status=200,
     )
 
 

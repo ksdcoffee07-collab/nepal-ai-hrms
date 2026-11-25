@@ -18,12 +18,17 @@ from horilla.__version__ import API_VERSION, __version__
 
 
 class HealthVersionTests(TestCase):
-    def test_health_is_unauthenticated_and_identifies_the_product(self):
+    def test_health_identifies_product_and_legacy_client_version(self):
         response = self.client.get("/health/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"status": "ok", "product": "horilla", "api": API_VERSION},
+            {
+                "status": "ok",
+                "product": "horilla",
+                "api": API_VERSION,
+                "version": ".".join(__version__.split(".")[:2]),
+            },
         )
 
     def test_health_does_not_disclose_the_release(self):
