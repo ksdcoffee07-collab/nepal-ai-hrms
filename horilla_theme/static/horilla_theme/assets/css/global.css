@@ -308,7 +308,15 @@
 
 @media (max-width: 991px) {
   .check {
+    display: inline-flex;
+  }
+
+  .check .date {
     display: none;
+  }
+
+  .check .con {
+    opacity: 1;
   }
 }
 
