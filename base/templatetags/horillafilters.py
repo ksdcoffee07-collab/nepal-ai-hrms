@@ -341,26 +341,9 @@ def is_check_in_enabled(request):
     """
     This method checks whether the check-in/check-out feature is enabled.
     """
-    from attendance.models import AttendanceGeneralSetting
+    from attendance.punch_settings import get_attendance_settings_for_request
 
-    selected_company = request.session.get("selected_company")
-    if not selected_company:
-        return False  # Safeguard if session key is missing
-
-    # Fetch the settings based on the selected company
-    if selected_company == "all":
-        attendance_settings = AttendanceGeneralSetting.objects.filter(
-            company_id=None
-        ).first()
-    else:
-        company = Company.objects.filter(id=selected_company).first()
-        if not company:
-            return False  # Return False if the company doesn't exist
-        attendance_settings = AttendanceGeneralSetting.objects.filter(
-            company_id=company
-        ).first()
-
-    # Check if check-in is enabled
+    _, attendance_settings = get_attendance_settings_for_request(request)
     return bool(attendance_settings and attendance_settings.enable_check_in)
 
 

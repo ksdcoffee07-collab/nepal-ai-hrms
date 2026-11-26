@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.http import HttpResponse
+from django.template import Context, loader
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import Resolver404, resolve, reverse
 
@@ -213,6 +214,17 @@ class EmployeeAttendanceDashboardTests(TestCase):
         self.assertNotContains(response, 'id="sidebar"')
         self.assertNotContains(response, "My Dashboard")
         self.assertNotContains(response, "Upcoming Holidays")
+
+    def test_attendance_buttons_render_without_selected_company(self):
+        request = RequestFactory().get(reverse("ess-dashboard"))
+        request.user = self.user
+        request.session = {}
+
+        content = loader.get_template(
+            "attendance/components/in_out_component.html"
+        ).render(Context({"request": request}))
+
+        self.assertRegex(content, r"Check[- ]In")
 
     def test_employee_server_access_is_limited_to_attendance_routes(self):
         self.client.force_login(self.user)

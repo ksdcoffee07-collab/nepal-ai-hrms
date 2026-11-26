@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from attendance.models import Attendance, AttendanceActivity
+from attendance.punch_settings import get_attendance_settings_for_request
 from horilla_api.api_methods.base.announcements import announcements_for
 from horilla_api.api_methods.base.capabilities import build_capabilities
 
@@ -251,6 +252,13 @@ class MobileHomeAPIView(APIView):
         worked_seconds = employee.get_forecasted_at_work().get(
             "forecasted_at_work_seconds", 0
         )
+        _, attendance_settings = get_attendance_settings_for_request(request)
+        check_in_enabled = bool(
+            attendance_settings and attendance_settings.enable_check_in
+        )
+        punch = _punch_block(employee, activities)
+        punch["can_check_in"] = check_in_enabled and not punch["is_clocked_in"]
+        punch["can_check_out"] = check_in_enabled and punch["is_clocked_in"]
 
         return Response(
             {
@@ -260,7 +268,7 @@ class MobileHomeAPIView(APIView):
                     "avatar": employee.get_avatar(),
                 },
                 "capabilities": build_capabilities(request.user),
-                "punch": _punch_block(employee, activities),
+                "punch": punch,
                 "geofence": _geofence_block(employee),
                 "today": {
                     "worked": _format_seconds(worked_seconds),

@@ -33,16 +33,16 @@ from attendance.methods.utils import (
 from attendance.models import (
     Attendance,
     AttendanceActivity,
-    AttendanceGeneralSetting,
     AttendanceLateComeEarlyOut,
     GraceTime,
 )
+from attendance.punch_settings import get_attendance_settings_for_request
 from attendance.views.views import attendance_validate
 from base.context_processors import (
     enable_late_come_early_out_tracking,
     timerunner_enabled,
 )
-from base.models import AttendanceAllowedIP, Company, EmployeeShiftDay
+from base.models import AttendanceAllowedIP, EmployeeShiftDay
 from horilla.decorators import hx_request_required, login_required
 from horilla.horilla_middlewares import _thread_locals
 
@@ -208,17 +208,9 @@ def clock_in(request):
     This method is used to mark the attendance once per a day and multiple attendance activities.
     """
     # check wether check in/check out feature is enabled
-    selected_company = request.session.get("selected_company")
-    if selected_company == "all":
-        company = None
-        attendance_general_settings = AttendanceGeneralSetting.objects.filter(
-            company_id=None
-        ).first()
-    else:
-        company = Company.objects.filter(id=selected_company).first()
-        attendance_general_settings = AttendanceGeneralSetting.objects.filter(
-            company_id=company
-        ).first()
+    company, attendance_general_settings = get_attendance_settings_for_request(
+        request
+    )
     # request.__dict__.get("datetime")' used to check if the request is from a biometric device
     if (
         attendance_general_settings
@@ -476,17 +468,9 @@ def clock_out(request):
     This method is used to set the out date and time for attendance and attendance activity
     """
     # check wether check in/check out feature is enabled
-    selected_company = request.session.get("selected_company")
-    if selected_company == "all":
-        company = None
-        attendance_general_settings = AttendanceGeneralSetting.objects.filter(
-            company_id=None
-        ).first()
-    else:
-        company = Company.objects.filter(id=selected_company).first()
-        attendance_general_settings = AttendanceGeneralSetting.objects.filter(
-            company_id=company
-        ).first()
+    company, attendance_general_settings = get_attendance_settings_for_request(
+        request
+    )
     if (
         attendance_general_settings
         and attendance_general_settings.enable_check_in

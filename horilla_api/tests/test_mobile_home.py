@@ -14,7 +14,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from attendance.models import AttendanceActivity
+from attendance.models import AttendanceActivity, AttendanceGeneralSetting
 from horilla.horilla_middlewares import set_selected_company
 from horilla.testkit import make_company, make_employee, make_user
 
@@ -74,6 +74,18 @@ class MobileHomeTests(TestCase):
         punch = self.client.get(HOME_URL).data["punch"]
         self.assertFalse(punch["is_clocked_in"])
         self.assertIsNone(punch["clock_in_time"])
+        self.assertTrue(punch["can_check_in"])
+        self.assertFalse(punch["can_check_out"])
+
+    def test_check_in_controls_follow_the_company_setting(self):
+        AttendanceGeneralSetting.objects.entire().filter(
+            company_id=self.company
+        ).update(enable_check_in=False)
+
+        punch = self.client.get(HOME_URL).data["punch"]
+
+        self.assertFalse(punch["can_check_in"])
+        self.assertFalse(punch["can_check_out"])
 
     def test_geofence_reports_disabled_when_unconfigured(self):
         self.assertEqual(self.client.get(HOME_URL).data["geofence"], {"enabled": False})
@@ -111,6 +123,8 @@ class MobileHomeTests(TestCase):
             data["punch"]["is_clocked_in"],
             "the second activity has no clock_out, so the employee is still in",
         )
+        self.assertTrue(data["punch"]["can_check_out"])
+        self.assertFalse(data["punch"]["can_check_in"])
 
     def test_a_clock_out_without_an_out_datetime_does_not_500(self):
         """
