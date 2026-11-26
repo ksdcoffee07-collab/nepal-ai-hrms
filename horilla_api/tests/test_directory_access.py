@@ -1,15 +1,8 @@
-"""
-The employee directory over the API tracks the web's accessibility setting.
+"""Mobile directory access is self/manager scoped unless explicitly granted.
 
-employee.views.employee_view is guarded by
-@enter_if_accessible(feature="employee_view", ...), so an admin governs the
-directory through the accessibility app. EmployeeListAPIView ignored that and
-allowed only perm holders, managers and self -- so someone who could browse
-the directory on the web saw only themselves through the API, and the mobile
-directory screen had no data source.
-
-These also pin the payload: widening which rows are listed must not widen
-which *fields* come back.
+An unconfigured web accessibility feature defaults to open. The API does not:
+only an enabled, employee-specific accessibility grant or ``view_employee``
+permission may expose the full directory.
 """
 
 from django.contrib.auth.models import Permission
@@ -44,15 +37,29 @@ class DirectoryAccessTests(TestCase):
             )
         self.client.force_authenticate(user=self.user)
 
-    def test_unconfigured_feature_grants_the_directory(self):
-        """
-        The web's existing default: with no DefaultAccessibility row,
-        check_is_accessible returns True. Pinned so that changing it is a
-        deliberate act rather than a silent change of who sees whom.
-        """
+    def test_unconfigured_feature_limits_directory_to_self(self):
+        response = self.client.get(LIST_URL)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], self.employee.id)
+
+    def test_explicit_accessibility_grant_can_show_the_directory(self):
+        access = DefaultAccessibility.objects.create(
+            feature="employee_view", is_enabled=True, exclude_all=False, filter="{}"
+        )
+        access.employees.add(self.employee)
+
         response = self.client.get(LIST_URL)
         self.assertEqual(response.status_code, 200, response.content)
         self.assertGreater(response.data["count"], 1)
+
+    def test_disabled_feature_does_not_grant_the_directory(self):
+        DefaultAccessibility.objects.create(
+            feature="employee_view", is_enabled=False, exclude_all=False, filter="{}"
+        )
+        response = self.client.get(LIST_URL)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["count"], 1)
 
     def test_excluded_feature_falls_back_to_self_only(self):
         DefaultAccessibility.objects.create(

@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accessibility.methods import check_is_accessible
+from accessibility.models import DefaultAccessibility
 from employee.filters import (
     DisciplinaryActionFilter,
     DocumentRequestFilter,
@@ -249,36 +250,18 @@ class EmployeeAPIView(APIView):
 
 def directory_is_accessible(request):
     """
-    Whether this caller may browse the employee directory.
+    Whether an explicit employee-directory accessibility rule grants access.
 
-    Mirrors what ``@enter_if_accessible(feature="employee_view")`` does for the
-    web view, so one setting governs both surfaces.
-
-    Worth knowing: ``check_is_accessible`` returns True when the feature has no
-    ``DefaultAccessibility`` row, so an unconfigured install grants the
-    directory to everyone -- that is the web's existing default, not something
-    introduced here. Configure the feature to restrict it.
-
-    Only ever widens which *rows* are listed; the payload is unchanged.
-    Be clear about what that payload is, though, because widening who can see
-    it is the point of this function: ``EmployeeListSerializer`` returns id,
-    first and last name, job position, avatar, **email**, and the row ids of
-    the employee's work-information and bank-details records.
-
-    The two ids are safe to hand out -- ``EmployeeWorkInformationAPIView.get``
-    and ``EmployeeBankDetailsAPIView.get`` each re-check that the caller is the
-    owner, their reporting manager, or holds the matching view permission, so
-    knowing an id grants nothing. Salary, address and bank particulars stay
-    behind those checks.
-
-    The email does not have that protection: granting this feature publishes
-    every colleague's address to every grantee. That is the same set the web
-    directory shows, so it is not new exposure relative to the web -- but it is
-    new exposure relative to what this endpoint returned before, and it is
-    worth deciding deliberately rather than inheriting.
+    The web accessibility helper treats a missing or disabled rule as open.
+    For the mobile API, only an enabled, explicitly configured rule may widen
+    directory results beyond the caller and their reports.
     """
     employee = getattr(request.user, "employee_get", None)
     if not employee:
+        return False
+    if not DefaultAccessibility.objects.filter(
+        feature="employee_view", is_enabled=True
+    ).exists():
         return False
     return check_is_accessible(
         "employee_view", get_accessibility_cache_key(request), employee
@@ -301,18 +284,9 @@ class EmployeeListAPIView(APIView):
             "id", "employee_first_name", "employee_last_name"
         )
 
-        # Permission-based filtering.
-        #
-        # The web directory (employee.views.employee_view) is guarded by
-        # @enter_if_accessible(feature="employee_view", ...), so an admin can
-        # grant or withhold it through the accessibility app. This endpoint
-        # ignored that entirely and allowed only perm holders, managers and
-        # self -- so an employee who can browse the directory on the web saw
-        # nothing but themselves through the API, and the mobile directory
-        # screen had no data source at all.
-        #
-        # Honouring the same grant, additively: everything that resolved
-        # before still resolves, this only adds the accessibility path.
+        # A permission or an explicit accessibility grant can reveal the full
+        # directory; otherwise, employees are limited to themselves and their
+        # reports.
         if user.has_perm("employee.view_employee") or directory_is_accessible(request):
             pass  # employees_queryset is already all employees
         else:

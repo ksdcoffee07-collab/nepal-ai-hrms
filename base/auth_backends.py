@@ -39,30 +39,35 @@ class CompanyScopedBackend(ModelBackend):
         if username is None:
             return None
 
-        try:
-            user_model._default_manager.get_by_natural_key(username)
-        except user_model.DoesNotExist:
-            email_matches = list(
-                user_model._default_manager.filter(email__iexact=username)[:2]
-            )
-            if len(email_matches) > 1:
-                return None
-            if email_matches:
-                username = email_matches[0].get_username()
-            else:
-                from employee.models import Employee
+        email_matches = list(
+            user_model._default_manager.filter(email__iexact=username)[:2]
+        )
+        if len(email_matches) > 1:
+            return None
+        if email_matches:
+            username = email_matches[0].get_username()
+        else:
+            from employee.models import Employee
 
-                profile_usernames = list(
-                    Employee.objects.filter(
-                        email__iexact=username,
-                        employee_user_id__isnull=False,
-                    ).values_list(
-                        f"employee_user_id__{user_model.USERNAME_FIELD}", flat=True
-                    )[:2]
+            profile_usernames = list(
+                Employee.objects.entire()
+                .filter(
+                    email__iexact=username,
+                    employee_user_id__isnull=False,
                 )
-                if len(profile_usernames) != 1:
-                    return None
+                .values_list(
+                    f"employee_user_id__{user_model.USERNAME_FIELD}", flat=True
+                )[:2]
+            )
+            if len(profile_usernames) > 1:
+                return None
+            if profile_usernames:
                 username = profile_usernames[0]
+            else:
+                try:
+                    user_model._default_manager.get_by_natural_key(username)
+                except user_model.DoesNotExist:
+                    return None
 
         return super().authenticate(
             request, username=username, password=password, **kwargs

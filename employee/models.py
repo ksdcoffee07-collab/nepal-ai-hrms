@@ -167,6 +167,17 @@ class Employee(models.Model):
                         _("Potential XSS content detected.")
                     )
 
+        if self.email and "email" not in total_exclude:
+            matching_users = HorillaUser.objects.filter(email__iexact=self.email)
+            if self.employee_user_id_id:
+                matching_users = matching_users.exclude(
+                    pk=self.employee_user_id_id
+                )
+            if matching_users.exists():
+                errors["email"] = ValidationError(
+                    _("This email is already used by another login account.")
+                )
+
         if errors:
             raise ValidationError(errors)
 
@@ -853,12 +864,18 @@ class Employee(models.Model):
             user = HorillaUser.objects.create_user(
                 username=username,
                 email=self.email,
+                first_name=self.employee_first_name,
+                last_name=self.employee_last_name or "",
                 password=password,
                 is_new_employee=True,
             )
             if not user:
                 user = HorillaUser.objects.create_user(
-                    username=username, email=self.email, password=password
+                    username=username,
+                    email=self.email,
+                    first_name=self.employee_first_name,
+                    last_name=self.employee_last_name or "",
+                    password=password,
                 )
             self.employee_user_id = user
             # default permissions
@@ -866,6 +883,19 @@ class Employee(models.Model):
             view_ownprofile = Permission.objects.get(codename="view_ownprofile")
             user.user_permissions.add(view_ownprofile)
             user.user_permissions.add(change_ownprofile)
+        else:
+            user = employee.employee_user_id
+            user_updates = []
+            for field, value in (
+                ("first_name", employee.employee_first_name),
+                ("last_name", employee.employee_last_name or ""),
+                ("email", employee.email),
+            ):
+                if getattr(user, field) != value:
+                    setattr(user, field, value)
+                    user_updates.append(field)
+            if user_updates:
+                user.save(update_fields=user_updates)
 
         if not hasattr(self, "employee_work_info"):
             EmployeeWorkInformation.objects.get_or_create(employee_id=self)

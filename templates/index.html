@@ -84,11 +84,13 @@
 
     <div class="oh-wrapper-main">
 
-        <!-- Start of Sidebar -->
-        <div id="sidebar">
-            {% include 'sidebar.html' %}
-        </div>
-        <!-- End of Sidebar -->
+        {% if not employee_attendance_only %}
+            <!-- Start of Sidebar -->
+            <div id="sidebar">
+                {% include 'sidebar.html' %}
+            </div>
+            <!-- End of Sidebar -->
+        {% endif %}
 
         <div id="main">
             <!-- Start of Confirmation Modal -->
@@ -111,42 +113,46 @@
             </div>
             <!-- End of Confirm Modal -->
 
-            <!-- Start of Notifications activity bar -->
-            <div class="oh-activity-sidebar " id="allNotifications" style="z-index:1000">
-                <div class="oh-activity-sidebar__header">
-                    <span id="notificationClose" style="cursor: pointer;" title="{% trans 'Close' %}">
-                        <ion-icon name="chevron-forward-outline"
-                            class="oh-activity-sidebar__header-icon me-2 oh-activity-sidebar__close" id="close"
-                            data-target="#activitySidebar" style="font-size: 24px;"></ion-icon>
-                    </span>
-                    <span class="oh-activity-sidebar__title"> {% trans "All Notifications" %}</span>
-                    <a class="delete-all-link" hx-target="#allNotificationBody"
-                        hx-post="{% url 'delete-all-notifications'%}">{% trans "Clear all" %}</a>
+            {% if not employee_attendance_only %}
+                <!-- Start of Notifications activity bar -->
+                <div class="oh-activity-sidebar " id="allNotifications" style="z-index:1000">
+                    <div class="oh-activity-sidebar__header">
+                        <span id="notificationClose" style="cursor: pointer;" title="{% trans 'Close' %}">
+                            <ion-icon name="chevron-forward-outline"
+                                class="oh-activity-sidebar__header-icon me-2 oh-activity-sidebar__close" id="close"
+                                data-target="#activitySidebar" style="font-size: 24px;"></ion-icon>
+                        </span>
+                        <span class="oh-activity-sidebar__title"> {% trans "All Notifications" %}</span>
+                        <a class="delete-all-link" hx-target="#allNotificationBody"
+                            hx-post="{% url 'delete-all-notifications'%}">{% trans "Clear all" %}</a>
+                    </div>
+                    <div class="oh-activity-sidebar__body" id="allNotificationBody">
+                        {% include "notification/all_notifications.html" %}
+                    </div>
                 </div>
-                <div class="oh-activity-sidebar__body" id="allNotificationBody">
-                    {% include "notification/all_notifications.html" %}
-                </div>
-            </div>
-            <!-- End of Notifications activity bar -->
+                <!-- End of Notifications activity bar -->
+            {% endif %}
 
             <!-- Start of Nav bar -->
             <nav class="oh-navbar" style="width: -webkit-fill-available;;">
                 <div class="oh-wrapper oh-navbar__wrapper">
-                    <div class="oh-navbar__toggle-container">
-                        <a href="#" class="oh-navbar__toggle-link oh-link__unstyled" onclick="handleSidebarToggle()">
-                            <img src="{% static 'images/ui/menu.svg' %}" width="24" height="24"
-                                class="oh-navbar__toggle-menu" loading="lazy" />
-                        </a>
+                    {% if not employee_attendance_only %}
+                        <div class="oh-navbar__toggle-container">
+                            <a href="#" class="oh-navbar__toggle-link oh-link__unstyled" onclick="handleSidebarToggle()">
+                                <img src="{% static 'images/ui/menu.svg' %}" width="24" height="24"
+                                    class="oh-navbar__toggle-menu" loading="lazy" />
+                            </a>
 
-                        {% if breadcrumbs %}
-                            <!-- Start of breadcrumb in nav bar -->
-                            {% include "base/navbar_components/breadcrumbs_view.html" %}
-                            <!-- End of breadcrumb in nav bar -->
-                        {% endif %}
-                        </a>
-                    </div>
+                            {% if breadcrumbs %}
+                                <!-- Start of breadcrumb in nav bar -->
+                                {% include "base/navbar_components/breadcrumbs_view.html" %}
+                                <!-- End of breadcrumb in nav bar -->
+                            {% endif %}
+                            </a>
+                        </div>
+                    {% endif %}
                     <div class="oh-navbar__systray">
-                        {% if "attendance"|app_installed %}
+                        {% if not employee_attendance_only and "attendance"|app_installed %}
                             <!-- Start of check in/out button in nav bar -->
                             <div id="attendance-activity-container">
                                 {% include "attendance/components/in_out_component.html" %}
@@ -154,7 +160,7 @@
                             <!-- End of check in/out button in nav bar -->
                         {% endif %}
 
-                        {% if show_section %}
+                        {% if not employee_attendance_only and show_section %}
                             <!-- Start of settings button in nav bar -->
                             <div class="oh-navbar__action-icons" title="{% trans 'Settings' %}">
                                 <a href="{% url 'general-settings' %}" id="settingsMenu" class="oh-navbar__action-icons-link">
@@ -165,28 +171,38 @@
                         {% endif %}
 
                         <!-- Start of notifications button in nav bar -->
-                        {% include 'notification/notification.html' %}
+                        {% if not employee_attendance_only %}
+                            {% include 'notification/notification.html' %}
+                        {% endif %}
                         <!-- End of notifications button in nav bar -->
 
-                        {% if show_language_switcher %}
+                        {% if not employee_attendance_only and show_language_switcher %}
                             <!-- Start of Languages dropdown in nav bar -->
                             {% include "base/navbar_components/language_settings.html" %}
                             <!-- End of Languages dropdown in nav bar -->
                         {% endif %}
 
-                        {% if show_company_switcher %}
+                        {% if not employee_attendance_only and show_company_switcher %}
                             <!-- Start of Companies dropdown in nav bar -->
                             {% include "base/navbar_components/company_selection.html" %}
                             <!-- End of Companies dropdown in nav bar -->
                         {% endif %}
 
                         <!-- Start of profile dropdown in nav bar -->
-                        {% include "navbar_component/profile_section.html" %}
+                        {% if employee_attendance_only %}
+                            <a href="{% url 'logout' %}" class="oh-btn oh-btn--secondary">
+                                {% trans "Log out" %}
+                            </a>
+                        {% else %}
+                            {% include "navbar_component/profile_section.html" %}
+                        {% endif %}
                         <!-- End of profile dropdown in nav bar -->
                     </div>
                 </div>
                 <!-- Start of quick access in index page -->
-                {% include "floating_button.html" %}
+                {% if not employee_attendance_only %}
+                    {% include "floating_button.html" %}
+                {% endif %}
                 <!-- End of quick access in index page -->
             </nav>
             <!-- End of Nav bar -->

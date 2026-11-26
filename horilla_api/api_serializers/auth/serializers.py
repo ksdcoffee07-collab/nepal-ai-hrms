@@ -11,17 +11,38 @@ class GetEmployeeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Employee
-        fields = ["id", "full_name", "employee_profile"]
+        fields = ["id", "full_name", "email", "employee_profile"]
 
     def get_full_name(self, obj):
         return obj.get_full_name()
 
 
 class LoginRequestSerializer(serializers.Serializer):
-    """Simple request body for the login endpoint."""
+    """Request body accepting a username or email as the login identifier."""
 
-    username = serializers.CharField()
-    password = serializers.CharField()
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(trim_whitespace=False)
+
+    def validate(self, attrs):
+        username = attrs.get("username") or None
+        email = attrs.get("email") or None
+        if username is None and email is None:
+            raise serializers.ValidationError(
+                {"username": _("Provide a username or email.")}
+            )
+        if (
+            username is not None
+            and email is not None
+            and username.casefold() != email.casefold()
+        ):
+            raise serializers.ValidationError(
+                {"email": _("Username and email must match when both are provided.")}
+            )
+
+        attrs["username"] = username if username is not None else email
+        attrs.pop("email", None)
+        return attrs
 
 
 class PasswordResetSerializer(serializers.Serializer):

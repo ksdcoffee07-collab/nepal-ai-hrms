@@ -213,6 +213,7 @@ MIDDLEWARE = [
     "base.middleware.CompanyMiddleware",
     "base.middleware.ForcePasswordChangeMiddleware",
     "base.middleware.TwoFactorAuthMiddleware",
+    "base.employee_access_middleware.EmployeeAttendanceAccessMiddleware",
     "accessibility.middlewares.AccessibilityMiddleware",
     "horilla.horilla_middlewares.MethodNotAllowedMiddleware",
     "horilla.horilla_middlewares.SVGSecurityMiddleware",

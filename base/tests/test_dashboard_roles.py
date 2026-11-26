@@ -6,6 +6,7 @@ import re
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import Resolver404, resolve, reverse
 
@@ -17,6 +18,7 @@ from base.dashboard_roles import (
     resolve_home_role,
     role_default_prefs,
 )
+from base.employee_access_middleware import EmployeeAttendanceAccessMiddleware
 from base.views import _charts_use_modern_prefs
 from horilla.testkit.factories import make_company, make_employee, make_user
 
@@ -185,3 +187,85 @@ class ModernDashboardFetchInventoryTests(TestCase):
             "dashboard-hiring",
         ):
             self.assertNotIn(legacy, names)
+
+
+class EmployeeAttendanceDashboardTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        company = make_company("Attendance Co")
+        cls.user = make_user("attendance-employee")
+        make_employee(
+            company=company,
+            email="attendance-employee@example.test",
+            user=cls.user,
+        )
+
+    def test_employee_dashboard_only_shows_attendance_and_logout(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("ess-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["employee_attendance_only"])
+        self.assertContains(response, 'class="employee-attendance-only"')
+        self.assertContains(response, reverse("clock-in"))
+        self.assertContains(response, reverse("logout"))
+        self.assertNotContains(response, 'id="sidebar"')
+        self.assertNotContains(response, "My Dashboard")
+        self.assertNotContains(response, "Upcoming Holidays")
+
+    def test_employee_server_access_is_limited_to_attendance_routes(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("ess-kpi-data"))
+
+        self.assertEqual(response.status_code, 403)
+
+
+class EmployeeAttendanceAccessMiddlewareTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.downstream_response = HttpResponse("passed")
+        self.middleware = EmployeeAttendanceAccessMiddleware(
+            lambda request: self.downstream_response
+        )
+
+    def _request(self, path, method="get"):
+        request = getattr(self.factory, method)(path)
+        request.user = SimpleNamespace(is_authenticated=True)
+        return request
+
+    @patch(
+        "base.employee_access_middleware.resolve_home_role",
+        return_value="employee",
+    )
+    def test_attendance_routes_are_allowed_for_employee(self, _resolve_role):
+        for route_name in ("clock-in", "clock-out"):
+            response = self.middleware(self._request(reverse(route_name)))
+            self.assertIs(response, self.downstream_response)
+
+    @patch(
+        "base.employee_access_middleware.resolve_home_role",
+        return_value="employee",
+    )
+    def test_other_routes_are_forbidden_for_employee(self, _resolve_role):
+        response = self.middleware(self._request(reverse("ess-kpi-data")))
+        self.assertEqual(response.status_code, 403)
+
+    @patch(
+        "base.employee_access_middleware.resolve_home_role",
+        return_value="employee",
+    )
+    def test_attendance_routes_reject_unsupported_methods(self, _resolve_role):
+        response = self.middleware(
+            self._request(reverse("clock-in"), method="post")
+        )
+        self.assertEqual(response.status_code, 403)
+
+    @patch(
+        "base.employee_access_middleware.resolve_home_role",
+        return_value="leadership",
+    )
+    def test_other_roles_keep_access(self, _resolve_role):
+        response = self.middleware(self._request(reverse("dashboard")))
+        self.assertIs(response, self.downstream_response)

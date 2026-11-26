@@ -33,7 +33,10 @@ class LoginAPIView(APIView):
     throttle_scope = "login"
 
     @document_api(
-        operation_description="Authenticate user and return JWT access token with employee info",
+        operation_description=(
+            "Authenticate with a username or email and return a JWT access token "
+            "with employee info"
+        ),
         request_body=LoginRequestSerializer,
         responses={
             200: openapi.Schema(
@@ -44,6 +47,7 @@ class LoginAPIView(APIView):
                         properties={
                             "id": openapi.Schema(type=openapi.TYPE_INTEGER),
                             "full_name": openapi.Schema(type=openapi.TYPE_STRING),
+                            "email": openapi.Schema(type=openapi.TYPE_STRING),
                             "employee_profile": openapi.Schema(
                                 type=openapi.TYPE_STRING,
                                 description="Profile image URL",
@@ -77,9 +81,14 @@ class LoginAPIView(APIView):
         tags=["auth"],
     )
     def post(self, request):
-        if "username" in request.data and "password" in request.data:
-            username = request.data.get("username")
-            password = request.data.get("password")
+        serializer = LoginRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        credentials = serializer.validated_data
+        username = credentials["username"]
+        password = credentials["password"]
+        if username is not None and password is not None:
             # Pass `request`: django-axes needs it to attribute the attempt to
             # a client and enforce the lockout. Without it the API login is
             # exempt from the brute-force protection the HTML login has --

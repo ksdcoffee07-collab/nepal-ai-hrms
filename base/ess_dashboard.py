@@ -73,16 +73,17 @@ def ess_dashboard(request):
 
     from base.dashboard_roles import can_see_analytics_home, resolve_home_role
 
+    home_role = resolve_home_role(request)
+
     return render(
         request,
         "base/ess_dashboard.html",
         {
             "employee": employee,
             "today": date.today(),
+            "employee_attendance_only": home_role == "employee",
             # Users who can see the admin-level dashboard get a switch to it.
-            "can_switch_to_main_dashboard": can_see_analytics_home(
-                resolve_home_role(request)
-            ),
+            "can_switch_to_main_dashboard": can_see_analytics_home(home_role),
         },
     )
 

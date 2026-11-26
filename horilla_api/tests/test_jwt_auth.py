@@ -30,6 +30,8 @@ class LoginAPITests(TestCase):
         self.assertIn("access", response.data)
         self.assertTrue(response.data["access"])
         self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+        self.assertEqual(response.data["employee"]["full_name"], "Test Employee")
+        self.assertEqual(response.data["employee"]["email"], self.employee.email)
 
     def test_login_accepts_email_as_identifier(self):
         response = self.client.post(
@@ -40,6 +42,80 @@ class LoginAPITests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertIn("access", response.data)
         self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+
+    def test_login_accepts_email_field_as_identifier(self):
+        response = self.client.post(
+            "/api/auth/login/",
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+
+    def test_account_email_takes_precedence_over_another_users_username(self):
+        shadow_user = make_user(
+            self.user.email,
+            password=self.password,
+            email="shadow@test.horilla",
+        )
+        shadow_employee = make_employee(
+            company=self.company,
+            email="shadow-employee@test.horilla",
+            first_name="Shadow",
+            last_name="Account",
+            user=shadow_user,
+        )
+
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": self.user.email, "password": self.password},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+        self.assertNotEqual(response.data["employee"]["id"], shadow_employee.pk)
+        self.assertEqual(response.data["employee"]["email"], self.employee.email)
+
+    def test_employee_email_takes_precedence_over_another_users_username(self):
+        employee_email = "profile_email@test.horilla"
+        type(self.employee).objects.filter(pk=self.employee.pk).update(
+            email=employee_email
+        )
+        shadow_user = make_user(
+            employee_email,
+            password=self.password,
+            email="shadow@test.horilla",
+        )
+        make_employee(
+            company=self.company,
+            email="shadow-employee@test.horilla",
+            first_name="Shadow",
+            last_name="Account",
+            user=shadow_user,
+        )
+
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": employee_email, "password": self.password},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["employee"]["id"], self.employee.pk)
+        self.assertEqual(response.data["employee"]["email"], employee_email)
+
+    def test_login_rejects_conflicting_username_and_email(self):
+        response = self.client.post(
+            "/api/auth/login/",
+            {
+                "username": self.user.username,
+                "email": "someone-else@test.horilla",
+                "password": self.password,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_login_accepts_employee_email_when_account_email_differs(self):
         employee_email = "profile_email@test.horilla"
