@@ -74,7 +74,8 @@ XlsxWriter==3.2.9
 # which XSS-checks the rendered body before wkhtmltopdf sees it.
 pdfkit==1.0.0
 PyMuPDF>=1.28.2,<2
-reportlab==4.0.9
+# svglib 2.3.1 fixes CVE-2026-132275 and requires ReportLab >=4.4.3.
+reportlab==4.4.10
 xhtml2pdf==0.2.17
 
 # Web scraping & HTML
@@ -152,11 +153,12 @@ en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_
 # 6.4.0 fixes two clean() XSS bypasses (GHSA-gj48-438w-jh9v via formaction,
 # GHSA-8rfp-98v4-mmr6 via href).
 bleach==6.4.0
+# Pin the SVG converter because its fixed release also supplies tinycss2,
+# which bleach's CSS sanitizer needs but bleach does not require by default.
+svglib==2.3.1
 # bleach's CSS sanitizer (used by base.templatetags.basefilters.sanitize_html to
-# keep inline colour in rich text) imports tinycss2, which bleach does not
-# require -- it is the bleach[css] extra. It currently arrives only as a
-# transitive dependency of svglib, which is itself not pinned here, so without
-# this line the filter breaks at import on a clean install.
+# keep inline colour in rich text) imports tinycss2; keep it explicit because
+# bleach does not require the bleach[css] extra.
 tinycss2==1.5.1
 gunicorn==23.0.0
 packaging==26.3
